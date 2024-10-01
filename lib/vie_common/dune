@@ -1,0 +1,3 @@
+(library
+  (name vie_common)
+  (modules result))

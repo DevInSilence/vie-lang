@@ -1,0 +1,5 @@
+(executable
+ (public_name vie)
+ (name main)
+ (modules main) 
+ (libraries vie_parser))

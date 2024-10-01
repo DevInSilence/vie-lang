@@ -1,0 +1,3 @@
+(library
+ (name vie_parser)
+ (libraries vie_lexer))
