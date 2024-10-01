@@ -105,96 +105,111 @@ let lex_identifiers source start_idx idx_ref line_ref column_ref :
   in
   collect_identifier ()
 
-(* Handlers *)
-
-let handle_whitespace source idx_ref line_ref column_ref =
+(* Checkers *)
+(* Checkers *)
+let check_whitespace source idx_ref =
   match peek_char source !idx_ref with
-  | Some c when is_whitespace c ->
-      update_pos line_ref column_ref c;
-      idx_ref := !idx_ref + 1;
-      true
+  | Some c when is_whitespace c -> true
   | _ -> false
 
-let handle_number source idx_ref line_ref column_ref tokens_ref errs_ref =
+let check_number source idx_ref =
   match peek_char source !idx_ref with
   | Some c
     when is_valid_number_start c
          || UChar.code c = UChar.code (UChar.of_char '.') ->
-      let start_idx = !idx_ref in
-      (match lex_number source start_idx idx_ref line_ref column_ref with
-      | Result.Ok token -> append_token tokens_ref token
-      | Result.Error err -> append_error errs_ref err);
       true
   | _ -> false
+
+let check_identifier source idx_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_identifier_start c -> true
+  | _ -> false
+
+let check_operator source idx_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_operator c -> true
+  | _ -> false
+
+let check_assign source idx_ref =
+  match peek_char source !idx_ref with
+  | Some c when UChar.code c = UChar.code (UChar.of_char '=') -> true
+  | _ -> false
+
+let check_unexpected_char source idx_ref =
+  match peek_char source !idx_ref with Some _ -> true | None -> false
+
+(* Handlers *)
+let handle_whitespace source idx_ref line_ref column_ref =
+  let c = Option.get (peek_char source !idx_ref) in
+  update_pos line_ref column_ref c;
+  idx_ref := !idx_ref + 1
+
+let handle_number source idx_ref line_ref column_ref tokens_ref errs_ref =
+  let start_idx = !idx_ref in
+  match lex_number source start_idx idx_ref line_ref column_ref with
+  | Result.Ok token -> append_token tokens_ref token
+  | Result.Error err -> append_error errs_ref err
 
 let handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref =
-  match peek_char source !idx_ref with
-  | Some c when is_valid_identifier_start c ->
-      let start_idx = !idx_ref in
-      (match lex_identifiers source start_idx idx_ref line_ref column_ref with
-      | Result.Ok token -> append_token tokens_ref token
-      | Result.Error err -> append_error errs_ref err);
-      true
-  | _ -> false
-
-let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
-  match peek_char source !idx_ref with
-  | Some c ->
-      errs_ref :=
-        Format.sprintf "Unexpected character '%s' at line %d, column %d"
-          (Vie_common.Unicode.uchar_to_string c)
-          !line_ref !column_ref
-        :: !errs_ref;
-      idx_ref := !idx_ref + 1;
-      true
-  | None -> false
+  let start_idx = !idx_ref in
+  match lex_identifiers source start_idx idx_ref line_ref column_ref with
+  | Result.Ok token -> append_token tokens_ref token
+  | Result.Error err -> append_error errs_ref err
 
 let handle_operator source idx_ref line_ref column_ref tokens_ref =
-  match peek_char source !idx_ref with
-  | Some c when is_valid_operator c ->
-      let start_idx = !idx_ref in
-      let loc =
-        Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
-      in
-      append_token tokens_ref
-        (Token.Operator (Vie_common.Unicode.uchar_to_string c, loc));
-      update_pos line_ref column_ref c;
-      idx_ref := !idx_ref + 1;
-      true
-  | _ -> false
+  let start_idx = !idx_ref in
+  let loc =
+    Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
+  in
+  append_token tokens_ref
+    (Token.Operator
+       ( Vie_common.Unicode.uchar_to_string
+           (Option.get (peek_char source !idx_ref)),
+         loc ));
+  update_pos line_ref column_ref (Option.get (peek_char source !idx_ref));
+  idx_ref := !idx_ref + 1
 
 let handle_assign source idx_ref line_ref column_ref tokens_ref =
-  match peek_char source !idx_ref with
-  | Some c when UChar.code c = UChar.code (UChar.of_char '=') ->
-      let start_idx = !idx_ref in
-      let loc =
-        Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
-      in
-      append_token tokens_ref (Token.Assign loc);
-      update_pos line_ref column_ref c;
-      idx_ref := !idx_ref + 1;
-      true
-  | _ -> false
+  let start_idx = !idx_ref in
+  let loc =
+    Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
+  in
+  append_token tokens_ref (Token.Assign loc);
+  update_pos line_ref column_ref (Option.get (peek_char source !idx_ref));
+  idx_ref := !idx_ref + 1
+
+let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
+  let c = Option.get (peek_char source !idx_ref) in
+  errs_ref :=
+    Format.sprintf "Unexpected character '%s' at line %d, column %d"
+      (Vie_common.Unicode.uchar_to_string c)
+      !line_ref !column_ref
+    :: !errs_ref;
+  idx_ref := !idx_ref + 1
 
 (* Main lexer function *)
-
 let rec lex_token source idx_ref line_ref column_ref tokens_ref errs_ref =
   if !idx_ref >= UTF8.length source then
     append_token tokens_ref
       (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
-  else if handle_whitespace source idx_ref line_ref column_ref then
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
-  else if handle_number source idx_ref line_ref column_ref tokens_ref errs_ref
-  then lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
-  else if handle_operator source idx_ref line_ref column_ref tokens_ref then
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
-  else if handle_assign source idx_ref line_ref column_ref tokens_ref then
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
-  else if
-    handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref
-  then lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
-  else if handle_unexpected_char source idx_ref line_ref column_ref errs_ref
-  then lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if check_whitespace source idx_ref then (
+    handle_whitespace source idx_ref line_ref column_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
+  else if check_number source idx_ref then (
+    handle_number source idx_ref line_ref column_ref tokens_ref errs_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
+  else if check_operator source idx_ref then (
+    handle_operator source idx_ref line_ref column_ref tokens_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
+  else if check_assign source idx_ref then (
+    handle_assign source idx_ref line_ref column_ref tokens_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
+  else if check_identifier source idx_ref then (
+    handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
+  else if check_unexpected_char source idx_ref then (
+    handle_unexpected_char source idx_ref line_ref column_ref errs_ref;
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
   else ()
 
 (* Main lexer function *)
