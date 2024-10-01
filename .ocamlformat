@@ -1,0 +1,2 @@
+version=0.26.2  # Specify the version you're using
+profile=conventional  # You can choose other profiles like "default", "compact", etc.

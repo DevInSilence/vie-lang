@@ -20,5 +20,6 @@ let format (tok : t) : string =
   | Operator (op, loc) ->
       Printf.sprintf "Tok { type: Operator, value: %s, loc: %s }" op
         (Location.format loc)
-  | Assign loc -> Printf.sprintf "Tok { type: Assign, loc: %s}" (Location.format loc)
+  | Assign loc ->
+      Printf.sprintf "Tok { type: Assign, loc: %s}" (Location.format loc)
   | EOF loc -> Printf.sprintf "Tok { type: EOF, loc: %s}" (Location.format loc)
