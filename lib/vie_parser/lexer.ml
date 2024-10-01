@@ -44,6 +44,10 @@ let is_whitespace c =
   let code = UChar.code c in
   code = UChar.code (UChar.of_char ' ') || code = UChar.code (UChar.of_char '\n') || code = UChar.code (UChar.of_char '\t')
 
+let is_valid_operator c =
+  let code = UChar.code c in
+  code = UChar.code (UChar.of_char '+') || code = UChar.code (UChar.of_char '-') || code = UChar.code (UChar.of_char '*') || code = UChar.code (UChar.of_char '/') || code = UChar.code (UChar.of_char '%')
+
 (* Lexer functions *)
 
 let lex_number source start_idx idx_ref line_ref column_ref : (Token.t, string) Result.t =
@@ -126,12 +130,41 @@ let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
       true
   | None -> false
 
+let handle_operator source idx_ref line_ref column_ref tokens_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_operator c ->
+      let start_idx = !idx_ref in
+      let loc = Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref in
+      append_token tokens_ref (Token.Operator (Vie_common.Unicode.uchar_to_string c, loc));
+      update_pos line_ref column_ref c;
+      idx_ref := !idx_ref + 1;
+      true
+  | _ -> false
+
+let handle_assign source idx_ref line_ref column_ref tokens_ref =
+  match peek_char source !idx_ref with
+  | Some c when UChar.code c = UChar.code (UChar.of_char '=') ->
+      let start_idx = !idx_ref in
+      let loc = Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref in
+      append_token tokens_ref (Token.Assign loc);
+      update_pos line_ref column_ref c;
+      idx_ref := !idx_ref + 1;
+      true
+  | _ -> false
+
+(* Main lexer function *)
+  
+
 let rec lex_token source idx_ref line_ref column_ref tokens_ref errs_ref =
   if !idx_ref >= UTF8.length source then
     append_token tokens_ref (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
   else if handle_whitespace source idx_ref line_ref column_ref then
     lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
   else if handle_number source idx_ref line_ref column_ref tokens_ref errs_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if handle_operator source idx_ref line_ref column_ref tokens_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if handle_assign source idx_ref line_ref column_ref tokens_ref then
     lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
   else if handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref then
     lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
