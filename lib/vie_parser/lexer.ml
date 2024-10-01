@@ -14,6 +14,7 @@ let update_pos line_ref column_ref char =
     column_ref := !column_ref + 1
 
 let append_token tokens_ref tok = tokens_ref := tok :: !tokens_ref
+let append_error errs_ref err = errs_ref := err :: !errs_ref
 
 let peek_char source idx =
   if idx >= UTF8.length source then None
@@ -58,16 +59,16 @@ let lex_number source start_idx idx_ref line_ref column_ref : (Token.t, string) 
         update_pos line_ref column_ref c;
         idx_ref := !idx_ref + 1;
         collect_number ()
-    | _ -> 
-        let num_str = collect source start_idx !idx_ref in
-        let loc = Location.new_location start_idx !idx_ref !column_ref !line_ref in
-        if !is_float then
-          try Result.Ok (Token.Decimal (float_of_string num_str, loc))
-          with Failure _ -> Result.Error "Invalid float format"
-        else
-          try Result.Ok (Token.Number (int_of_string num_str, loc))
-          with Failure _ -> Result.Error "Invalid integer format"
-  in
+        | _ -> 
+          let num_str = collect source start_idx !idx_ref in
+          let loc = Location.new_location start_idx !idx_ref !column_ref !line_ref in
+          if !is_float then
+            try Result.Ok (Token.Decimal (float_of_string num_str, loc))
+            with Failure _ -> Result.Error (Printf.sprintf "Invalid float format: '%s'" num_str)
+          else
+            try Result.Ok (Token.Number (int_of_string num_str, loc))
+            with Failure _ -> Result.Error (Printf.sprintf "Invalid integer format: '%s'" num_str)
+          in  
   collect_number ()
 
 let lex_identifiers source start_idx idx_ref line_ref column_ref : (Token.t, string) Result.t =
@@ -107,7 +108,7 @@ let lex source : (Token.t list, string list) Result.t =
           let start_idx = !idx in
           (match lex_number source start_idx idx line column with
           | Result.Ok token -> append_token tokens token
-          | Result.Error err -> errs := err :: !errs);
+          | Result.Error err -> append_error errs err);
           lex_token ()
       | Some c when UChar.code c = UChar.code (UChar.of_char '.') ->
           (match peek_char source (!idx + 1) with
@@ -115,7 +116,7 @@ let lex source : (Token.t list, string list) Result.t =
               let start_idx = !idx in
               (match lex_number source start_idx idx line column with
               | Result.Ok token -> append_token tokens token
-              | Result.Error err -> errs := err :: !errs);
+              | Result.Error err -> append_error errs err);
               lex_token ()
           | _ ->
               errs := Format.sprintf "Unexpected character '.' at line %d, column %d" !line !column :: !errs;
@@ -125,7 +126,7 @@ let lex source : (Token.t list, string list) Result.t =
           let start_idx = !idx in
           (match lex_identifiers source start_idx idx line column with
           | Result.Ok token -> append_token tokens token
-          | Result.Error err -> errs := err :: !errs);
+          | Result.Error err -> append_error errs err);
           lex_token ()
       | Some c ->
           errs := Format.sprintf "Unexpected character '%s' at line %d, column %d"
