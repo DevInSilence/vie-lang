@@ -1,10 +1,4 @@
-type numeric = Int of int | Float of float
-
-let format_numeric (num : numeric) : string =
-  match num with Int i -> string_of_int i | Float f -> string_of_float f
-
 type t =
-  (* | Number of (numeric * Location.t) *)
   | Number of (int * Location.t)
   | Decimal of (float * Location.t)
   | EOF of Location.t
