@@ -1,4 +1,5 @@
 (library
   (name vie_lexer)
   (modules location token)
+  (public_name vie.vie_lexer)
   (libraries str vie_common))

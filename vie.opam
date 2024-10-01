@@ -13,6 +13,7 @@ bug-reports: "https://github.com/devinsilence/vie/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.16"}
+  "camomile"
   "odoc" {with-doc}
 ]
 build: [

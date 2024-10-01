@@ -1,3 +1,4 @@
 (library
  (name vie_parser)
+ (public_name vie.vie_parser)
  (libraries vie_lexer camomile))

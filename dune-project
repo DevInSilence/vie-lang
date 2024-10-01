@@ -19,7 +19,7 @@
  (name vie)
  (synopsis "Vie is a small compiled programming language")
  (description "Vie is programming language which was developed while learning OCaml")
- (depends ocaml dune)
+ (depends ocaml dune camomile)
  (tags
   (topics "programming" "languages")))
 
