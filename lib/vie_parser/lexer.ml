@@ -22,6 +22,8 @@ let peek_char source idx =
 let collect source start_idx idx : string =
   String.sub source start_idx (idx - start_idx)
 
+let is_number_char c = c >= '0' && c <= '9'
+
 (*Lexers*)
 
 let lex_number source start_idx idx_ref line_ref column_ref : (Token.t, string) Result.t =
@@ -33,7 +35,7 @@ let lex_number source start_idx idx_ref line_ref column_ref : (Token.t, string) 
       idx_ref := !idx_ref + 1;
       is_float := true;
       collect_number ()
-    | Some c when c >= '0' && c <= '9' -> 
+    | Some c when is_number_char c ->
       update_pos line_ref column_ref c;
       idx_ref := !idx_ref + 1;
       collect_number ()
@@ -79,13 +81,26 @@ let lex source : (Token.t list, string list) Result.t =
         | Result.Error err -> errs := err :: !errs);
         lex_token ()
       )
+      | '.' -> (
+        match peek_char source (!idx + 1) with
+        | Some c when is_number_char c -> (
+          let start_idx = !idx in
+          (match lex_number source start_idx idx line column with
+          | Result.Ok token -> append_token tokens token
+          | Result.Error err -> errs := err :: !errs);
+          lex_token ()
+        )
+        | _ -> (
+          errs := Format.sprintf "Unexpected character '.' at line %d, column %d" !line !column :: !errs;
+          idx := !idx + 1;
+          lex_token ()
+      ))
       | _ -> (
-        errs := "Unexpected character" :: !errs;
+        errs := Format.sprintf "Unexpected character '%c' at line %d, column %d" char !line !column :: !errs;
         idx := !idx + 1;
         lex_token ()
       )
-    )
-  in
+    )in
   lex_token ();
 
   if List.length !errs > 0 then Result.Error (List.rev !errs)
