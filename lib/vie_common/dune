@@ -1,3 +1,4 @@
 (library
   (name vie_common)
-  (modules result))
+  (modules result unicode)
+  (libraries camomile))
