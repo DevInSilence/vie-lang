@@ -11,7 +11,6 @@ type t =
 
 let format (tok : t) : string =
   match tok with
-  (* | Number (num, loc) -> Printf.sprintf "Tok {type: Number, value: %s, loc: %s }"  (format_numeric num) (Location.format loc) *)
   | Number (num, loc) ->
       Printf.sprintf "Tok { type: Number, value: %d, loc: %s }" num
         (Location.format loc)
