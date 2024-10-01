@@ -1,8 +1,0 @@
-lib: [
-  "_build/install/default/lib/vie/META"
-  "_build/install/default/lib/vie/dune-package"
-  "_build/install/default/lib/vie/opam"
-]
-bin: [
-  "_build/install/default/bin/vie"
-]
