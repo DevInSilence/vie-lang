@@ -18,7 +18,17 @@ let peek_char source idx =
 let collect source start_idx idx : string =
   String.sub source start_idx (idx - start_idx)
 
-let is_number_char c = c >= '0' && c <= '9'
+let is_valid_number_start c = c >= '0' && c <= '9'
+
+let is_valid_identifier_start c =
+  (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c = '_'
+
+let is_valid_identifier_continuation c =
+  is_valid_identifier_start c || is_valid_number_start c
+
+let classify_identifier iden loc: Token.t =
+  match iden with
+  | _ -> Token.Iden (iden, loc)
 
 (*Lexers*)
 
@@ -32,7 +42,7 @@ let lex_number source start_idx idx_ref line_ref column_ref :
         idx_ref := !idx_ref + 1;
         is_float := true;
         collect_number ()
-    | Some c when is_number_char c ->
+    | Some c when is_valid_number_start c ->
         update_pos line_ref column_ref c;
         idx_ref := !idx_ref + 1;
         collect_number ()
@@ -49,6 +59,25 @@ let lex_number source start_idx idx_ref line_ref column_ref :
           with Failure _ -> Result.Error "Invalid integer format")
   in
   collect_number ()
+
+  let lex_identifiers source start_idx idx_ref line_ref column_ref :
+  (Token.t, string) Result.t =
+let rec collect_identifier () =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_identifier_continuation c ->
+      update_pos line_ref column_ref c;
+      idx_ref := !idx_ref + 1;
+      collect_identifier ()
+  | _ ->
+      let iden = collect source start_idx !idx_ref in
+      let loc =
+        Location.new_location start_idx !idx_ref !column_ref !line_ref
+      in
+      Result.Ok (classify_identifier iden loc)
+in
+collect_identifier ()
+
+(*Main lexer function*)
 
 let lex source : (Token.t list, string list) Result.t =
   let len = String.length source in
@@ -79,7 +108,7 @@ let lex source : (Token.t list, string list) Result.t =
           lex_token ()
       | '.' -> (
           match peek_char source (!idx + 1) with
-          | Some c when is_number_char c ->
+          | Some c when is_valid_number_start c ->
               let start_idx = !idx in
               (match lex_number source start_idx idx line column with
               | Result.Ok token -> append_token tokens token
@@ -92,6 +121,12 @@ let lex source : (Token.t list, string list) Result.t =
                 :: !errs;
               idx := !idx + 1;
               lex_token ())
+      | 'a' .. 'z' | 'A' .. 'Z' | '_' ->
+          let start_idx = !idx in
+          (match lex_identifiers source start_idx idx line column with
+          | Result.Ok token -> append_token tokens token
+          | Result.Error err -> errs := err :: !errs);
+          lex_token ()
       | _ ->
           errs :=
             Format.sprintf "Unexpected character '%c' at line %d, column %d"
