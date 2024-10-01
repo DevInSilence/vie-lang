@@ -4,37 +4,42 @@ module Token = Vie_lexer.Token
 open Camomile
 module UTF8 = Camomile.UTF8
 
+type t = {
+  source : string;
+  mutable idx : int;
+  mutable line : int;
+  mutable column : int;
+  mutable tokens : Token.t list;
+  mutable errs : string list;
+}
+
 (* Utility functions *)
-
-let update_pos line_ref column_ref char =
+let update_pos ctx char =
   if UChar.code char = UChar.code (UChar.of_char '\n') then (
-    line_ref := !line_ref + 1;
-    column_ref := 1)
-  else column_ref := !column_ref + 1
+    ctx.line <- ctx.line + 1;
+    ctx.column <- 1)
+  else ctx.column <- ctx.column + 1
 
-let append_token tokens_ref tok = tokens_ref := tok :: !tokens_ref
-let append_error errs_ref err = errs_ref := err :: !errs_ref
+let append_token ctx tok = ctx.tokens <- tok :: ctx.tokens
+let append_error ctx err = ctx.errs <- err :: ctx.errs
 
-let peek_char source idx =
-  if idx >= UTF8.length source then None else Some (UTF8.get source idx)
+let peek_char ctx =
+  if ctx.idx >= UTF8.length ctx.source then None else Some (UTF8.get ctx.source ctx.idx)
 
-let collect source start_idx idx : string =
-  Vie_common.Unicode.utf8_sub source start_idx (idx - start_idx)
+let collect ctx start_idx : string =
+  Vie_common.Unicode.utf8_sub ctx.source start_idx (ctx.idx - start_idx)
 
 let classify_identifier iden loc : Token.t =
   match iden with _ -> Token.Iden (iden, loc)
 
 let is_valid_number_start c =
   let code = UChar.code c in
-  code >= UChar.code (UChar.of_char '0')
-  && code <= UChar.code (UChar.of_char '9')
+  code >= UChar.code (UChar.of_char '0') && code <= UChar.code (UChar.of_char '9')
 
 let is_valid_identifier_start c =
   let code = UChar.code c in
-  code >= UChar.code (UChar.of_char 'a')
-  && code <= UChar.code (UChar.of_char 'z')
-  || code >= UChar.code (UChar.of_char 'A')
-     && code <= UChar.code (UChar.of_char 'Z')
+  code >= UChar.code (UChar.of_char 'a') && code <= UChar.code (UChar.of_char 'z')
+  || code >= UChar.code (UChar.of_char 'A') && code <= UChar.code (UChar.of_char 'Z')
   || code = UChar.code (UChar.of_char '_')
 
 let is_valid_identifier_continuation c =
@@ -42,188 +47,153 @@ let is_valid_identifier_continuation c =
 
 let is_whitespace c =
   let code = UChar.code c in
-  code = UChar.code (UChar.of_char ' ')
-  || code = UChar.code (UChar.of_char '\n')
-  || code = UChar.code (UChar.of_char '\t')
+  code = UChar.code (UChar.of_char ' ') || code = UChar.code (UChar.of_char '\n') || code = UChar.code (UChar.of_char '\t')
 
 let is_valid_operator c =
   let code = UChar.code c in
-  code = UChar.code (UChar.of_char '+')
-  || code = UChar.code (UChar.of_char '-')
-  || code = UChar.code (UChar.of_char '*')
-  || code = UChar.code (UChar.of_char '/')
+  code = UChar.code (UChar.of_char '+') || code = UChar.code (UChar.of_char '-')
+  || code = UChar.code (UChar.of_char '*') || code = UChar.code (UChar.of_char '/')
   || code = UChar.code (UChar.of_char '%')
 
 (* Lexer functions *)
 
-let lex_number source start_idx idx_ref line_ref column_ref :
-    (Token.t, string) Result.t =
+let lex_number ctx start_idx : (Token.t, string) Result.t =
   let is_float = ref false in
   let rec collect_number () =
-    match peek_char source !idx_ref with
-    | Some c when UChar.code c = UChar.code (UChar.of_char '.') && not !is_float
-      ->
-        update_pos line_ref column_ref c;
-        idx_ref := !idx_ref + 1;
+    match peek_char ctx with
+    | Some c when UChar.code c = UChar.code (UChar.of_char '.') && not !is_float ->
+        update_pos ctx c;
+        ctx.idx <- ctx.idx + 1;
         is_float := true;
         collect_number ()
     | Some c when is_valid_number_start c ->
-        update_pos line_ref column_ref c;
-        idx_ref := !idx_ref + 1;
+        update_pos ctx c;
+        ctx.idx <- ctx.idx + 1;
         collect_number ()
-    | _ -> (
-        let num_str = collect source start_idx !idx_ref in
-        let loc =
-          Location.new_location start_idx !idx_ref !column_ref !line_ref
-        in
+    | _ ->
+        let num_str = collect ctx start_idx in
+        let loc = Location.new_location start_idx ctx.idx ctx.column ctx.line in
         if !is_float then
           try Result.Ok (Token.Decimal (float_of_string num_str, loc))
-          with Failure _ ->
-            Result.Error (Printf.sprintf "Invalid float format: '%s'" num_str)
+          with Failure _ -> Result.Error (Printf.sprintf "Invalid float format: '%s'" num_str)
         else
           try Result.Ok (Token.Number (int_of_string num_str, loc))
-          with Failure _ ->
-            Result.Error (Printf.sprintf "Invalid integer format: '%s'" num_str)
-        )
+          with Failure _ -> Result.Error (Printf.sprintf "Invalid integer format: '%s'" num_str)
   in
   collect_number ()
 
-let lex_identifiers source start_idx idx_ref line_ref column_ref :
-    (Token.t, string) Result.t =
+let lex_identifiers ctx start_idx : (Token.t, string) Result.t =
   let rec collect_identifier () =
-    match peek_char source !idx_ref with
+    match peek_char ctx with
     | Some c when is_valid_identifier_continuation c ->
-        update_pos line_ref column_ref c;
-        idx_ref := !idx_ref + 1;
+        update_pos ctx c;
+        ctx.idx <- ctx.idx + 1;
         collect_identifier ()
     | _ ->
-        let iden = collect source start_idx !idx_ref in
-        let loc =
-          Location.new_location start_idx !idx_ref !column_ref !line_ref
-        in
+        let iden = collect ctx start_idx in
+        let loc = Location.new_location start_idx ctx.idx ctx.column ctx.line in
         Result.Ok (classify_identifier iden loc)
   in
   collect_identifier ()
 
 (* Checkers *)
-(* Checkers *)
-let check_whitespace source idx_ref =
-  match peek_char source !idx_ref with
+let check_whitespace ctx =
+  match peek_char ctx with
   | Some c when is_whitespace c -> true
   | _ -> false
 
-let check_number source idx_ref =
-  match peek_char source !idx_ref with
-  | Some c
-    when is_valid_number_start c
-         || UChar.code c = UChar.code (UChar.of_char '.') ->
-      true
+let check_number ctx =
+  match peek_char ctx with
+  | Some c when is_valid_number_start c || UChar.code c = UChar.code (UChar.of_char '.') -> true
   | _ -> false
 
-let check_identifier source idx_ref =
-  match peek_char source !idx_ref with
+let check_identifier ctx =
+  match peek_char ctx with
   | Some c when is_valid_identifier_start c -> true
   | _ -> false
 
-let check_operator source idx_ref =
-  match peek_char source !idx_ref with
+let check_operator ctx =
+  match peek_char ctx with
   | Some c when is_valid_operator c -> true
   | _ -> false
 
-let check_assign source idx_ref =
-  match peek_char source !idx_ref with
+let check_assign ctx =
+  match peek_char ctx with
   | Some c when UChar.code c = UChar.code (UChar.of_char '=') -> true
   | _ -> false
 
-let check_unexpected_char source idx_ref =
-  match peek_char source !idx_ref with Some _ -> true | None -> false
+let check_unexpected_char ctx =
+  match peek_char ctx with Some _ -> true | None -> false
 
 (* Handlers *)
-let handle_whitespace source idx_ref line_ref column_ref =
-  let c = Option.get (peek_char source !idx_ref) in
-  update_pos line_ref column_ref c;
-  idx_ref := !idx_ref + 1
+let handle_whitespace ctx =
+  let c = Option.get (peek_char ctx) in
+  update_pos ctx c;
+  ctx.idx <- ctx.idx + 1
 
-let handle_number source idx_ref line_ref column_ref tokens_ref errs_ref =
-  let start_idx = !idx_ref in
-  match lex_number source start_idx idx_ref line_ref column_ref with
-  | Result.Ok token -> append_token tokens_ref token
-  | Result.Error err -> append_error errs_ref err
+let handle_number ctx =
+  let start_idx = ctx.idx in
+  match lex_number ctx start_idx with
+  | Result.Ok token -> append_token ctx token
+  | Result.Error err -> append_error ctx err
 
-let handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref =
-  let start_idx = !idx_ref in
-  match lex_identifiers source start_idx idx_ref line_ref column_ref with
-  | Result.Ok token -> append_token tokens_ref token
-  | Result.Error err -> append_error errs_ref err
+let handle_identifier ctx =
+  let start_idx = ctx.idx in
+  match lex_identifiers ctx start_idx with
+  | Result.Ok token -> append_token ctx token
+  | Result.Error err -> append_error ctx err
 
-let handle_operator source idx_ref line_ref column_ref tokens_ref =
-  let start_idx = !idx_ref in
-  let loc =
-    Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
-  in
-  append_token tokens_ref
-    (Token.Operator
-       ( Vie_common.Unicode.uchar_to_string
-           (Option.get (peek_char source !idx_ref)),
-         loc ));
-  update_pos line_ref column_ref (Option.get (peek_char source !idx_ref));
-  idx_ref := !idx_ref + 1
+let handle_operator ctx =
+  let start_idx = ctx.idx in
+  let loc = Location.new_location start_idx (ctx.idx + 1) ctx.column ctx.line in
+  append_token ctx (Token.Operator (Vie_common.Unicode.uchar_to_string (Option.get (peek_char ctx)), loc));
+  update_pos ctx (Option.get (peek_char ctx));
+  ctx.idx <- ctx.idx + 1
 
-let handle_assign source idx_ref line_ref column_ref tokens_ref =
-  let start_idx = !idx_ref in
-  let loc =
-    Location.new_location start_idx (!idx_ref + 1) !column_ref !line_ref
-  in
-  append_token tokens_ref (Token.Assign loc);
-  update_pos line_ref column_ref (Option.get (peek_char source !idx_ref));
-  idx_ref := !idx_ref + 1
+let handle_assign ctx =
+  let start_idx = ctx.idx in
+  let loc = Location.new_location start_idx (ctx.idx + 1) ctx.column ctx.line in
+  append_token ctx (Token.Assign loc);
+  update_pos ctx (Option.get (peek_char ctx));
+  ctx.idx <- ctx.idx + 1
 
-let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
-  let c = Option.get (peek_char source !idx_ref) in
-  errs_ref :=
-    Format.sprintf "Unexpected character '%s' at line %d, column %d"
-      (Vie_common.Unicode.uchar_to_string c)
-      !line_ref !column_ref
-    :: !errs_ref;
-  idx_ref := !idx_ref + 1
+let handle_unexpected_char ctx =
+  let c = Option.get (peek_char ctx) in
+  ctx.errs <- Format.sprintf "Unexpected character '%s' at line %d, column %d"
+    (Vie_common.Unicode.uchar_to_string c) ctx.line ctx.column :: ctx.errs;
+  ctx.idx <- ctx.idx + 1
 
-(* Main lexer function *)
 (* Main lexer function with pattern matching *)
-let rec lex_token source idx_ref line_ref column_ref tokens_ref errs_ref =
-  let next_char = peek_char source !idx_ref in
+let rec lex_token ctx =
+  let next_char = peek_char ctx in
   match next_char with
   | None -> 
-      append_token tokens_ref
-        (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
+      append_token ctx (Token.EOF (Location.new_location ctx.idx ctx.idx ctx.column ctx.line))
   | Some c when is_whitespace c -> 
-      handle_whitespace source idx_ref line_ref column_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_whitespace ctx;
+      lex_token ctx
   | Some c when is_valid_number_start c || UChar.code c = UChar.code (UChar.of_char '.') -> 
-      handle_number source idx_ref line_ref column_ref tokens_ref errs_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_number ctx;
+      lex_token ctx
   | Some c when is_valid_operator c -> 
-      handle_operator source idx_ref line_ref column_ref tokens_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_operator ctx;
+      lex_token ctx
   | Some c when UChar.code c = UChar.code (UChar.of_char '=') -> 
-      handle_assign source idx_ref line_ref column_ref tokens_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_assign ctx;
+      lex_token ctx
   | Some c when is_valid_identifier_start c -> 
-      handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_identifier ctx;
+      lex_token ctx
   | Some _ -> 
-      handle_unexpected_char source idx_ref line_ref column_ref errs_ref;
-      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+      handle_unexpected_char ctx;
+      lex_token ctx
 
 (* Main lexer function *)
 
 let lex source : (Token.t list, string list) Result.t =
-  let idx = ref 0 in
-  let line = ref 1 in
-  let column = ref 1 in
-  let tokens = ref [] in
-  let errs = ref [] in
+  let ctx = { source; idx = 0; line = 1; column = 1; tokens = []; errs = [] } in
 
-  lex_token source idx line column tokens errs;
+  lex_token ctx;
 
-  if List.length !errs > 0 then Result.Error (List.rev !errs)
-  else Result.Ok (List.rev !tokens)
+  if List.length ctx.errs > 0 then Result.Error (List.rev ctx.errs)
+  else Result.Ok (List.rev ctx.tokens)
