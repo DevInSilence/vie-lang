@@ -188,29 +188,31 @@ let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
   idx_ref := !idx_ref + 1
 
 (* Main lexer function *)
+(* Main lexer function with pattern matching *)
 let rec lex_token source idx_ref line_ref column_ref tokens_ref errs_ref =
-  if !idx_ref >= UTF8.length source then
-    append_token tokens_ref
-      (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
-  else if check_whitespace source idx_ref then (
-    handle_whitespace source idx_ref line_ref column_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else if check_number source idx_ref then (
-    handle_number source idx_ref line_ref column_ref tokens_ref errs_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else if check_operator source idx_ref then (
-    handle_operator source idx_ref line_ref column_ref tokens_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else if check_assign source idx_ref then (
-    handle_assign source idx_ref line_ref column_ref tokens_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else if check_identifier source idx_ref then (
-    handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else if check_unexpected_char source idx_ref then (
-    handle_unexpected_char source idx_ref line_ref column_ref errs_ref;
-    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref)
-  else ()
+  let next_char = peek_char source !idx_ref in
+  match next_char with
+  | None -> 
+      append_token tokens_ref
+        (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
+  | Some c when is_whitespace c -> 
+      handle_whitespace source idx_ref line_ref column_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  | Some c when is_valid_number_start c || UChar.code c = UChar.code (UChar.of_char '.') -> 
+      handle_number source idx_ref line_ref column_ref tokens_ref errs_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  | Some c when is_valid_operator c -> 
+      handle_operator source idx_ref line_ref column_ref tokens_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  | Some c when UChar.code c = UChar.code (UChar.of_char '=') -> 
+      handle_assign source idx_ref line_ref column_ref tokens_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  | Some c when is_valid_identifier_start c -> 
+      handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  | Some _ -> 
+      handle_unexpected_char source idx_ref line_ref column_ref errs_ref;
+      lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
 
 (* Main lexer function *)
 
