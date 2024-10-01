@@ -85,58 +85,71 @@ let lex_identifiers source start_idx idx_ref line_ref column_ref : (Token.t, str
   in
   collect_identifier ()
 
+(* Handlers *)
+
+let handle_whitespace source idx_ref line_ref column_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_whitespace c ->
+      update_pos line_ref column_ref c;
+      idx_ref := !idx_ref + 1;
+      true
+  | _ -> false
+
+let handle_number source idx_ref line_ref column_ref tokens_ref errs_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_number_start c || UChar.code c = UChar.code (UChar.of_char '.') ->
+      let start_idx = !idx_ref in
+      (match lex_number source start_idx idx_ref line_ref column_ref with
+      | Result.Ok token -> append_token tokens_ref token
+      | Result.Error err -> append_error errs_ref err);
+      true
+  | _ -> false
+  
+  
+let handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref =
+  match peek_char source !idx_ref with
+  | Some c when is_valid_identifier_start c ->
+      let start_idx = !idx_ref in
+      (match lex_identifiers source start_idx idx_ref line_ref column_ref with
+      | Result.Ok token -> append_token tokens_ref token
+      | Result.Error err -> append_error errs_ref err);
+      true
+  | _ -> false
+
+let handle_unexpected_char source idx_ref line_ref column_ref errs_ref =
+  match peek_char source !idx_ref with
+  | Some c ->
+      errs_ref := Format.sprintf "Unexpected character '%s' at line %d, column %d"
+                                  (Vie_common.Unicode.uchar_to_string c)
+                                  !line_ref !column_ref :: !errs_ref;
+      idx_ref := !idx_ref + 1;
+      true
+  | None -> false
+
+let rec lex_token source idx_ref line_ref column_ref tokens_ref errs_ref =
+  if !idx_ref >= UTF8.length source then
+    append_token tokens_ref (Token.EOF (Location.new_location !idx_ref !idx_ref !column_ref !line_ref))
+  else if handle_whitespace source idx_ref line_ref column_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if handle_number source idx_ref line_ref column_ref tokens_ref errs_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if handle_identifier source idx_ref line_ref column_ref tokens_ref errs_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else if handle_unexpected_char source idx_ref line_ref column_ref errs_ref then
+    lex_token source idx_ref line_ref column_ref tokens_ref errs_ref
+  else ()
+  
+
 (* Main lexer function *)
 
 let lex source : (Token.t list, string list) Result.t =
-  let len = String.length source in
   let idx = ref 0 in
   let line = ref 1 in
   let column = ref 1 in
   let tokens = ref [] in
   let errs = ref [] in
 
-  let rec lex_token () =
-    if !idx >= len then
-      append_token tokens (Token.EOF (Location.new_location !idx !idx !column !line))
-    else
-      match peek_char source !idx with
-      | Some c when is_whitespace c ->
-          update_pos line column c;
-          idx := !idx + 1;
-          lex_token ()
-      | Some c when is_valid_number_start c ->
-          let start_idx = !idx in
-          (match lex_number source start_idx idx line column with
-          | Result.Ok token -> append_token tokens token
-          | Result.Error err -> append_error errs err);
-          lex_token ()
-      | Some c when UChar.code c = UChar.code (UChar.of_char '.') ->
-          (match peek_char source (!idx + 1) with
-          | Some next_c when is_valid_number_start next_c ->
-              let start_idx = !idx in
-              (match lex_number source start_idx idx line column with
-              | Result.Ok token -> append_token tokens token
-              | Result.Error err -> append_error errs err);
-              lex_token ()
-          | _ ->
-              errs := Format.sprintf "Unexpected character '.' at line %d, column %d" !line !column :: !errs;
-              idx := !idx + 1;
-              lex_token ())
-      | Some c when is_valid_identifier_start c ->
-          let start_idx = !idx in
-          (match lex_identifiers source start_idx idx line column with
-          | Result.Ok token -> append_token tokens token
-          | Result.Error err -> append_error errs err);
-          lex_token ()
-      | Some c ->
-          errs := Format.sprintf "Unexpected character '%s' at line %d, column %d"
-                                  (Vie_common.Unicode.uchar_to_string c)
-                                  !line !column :: !errs;
-          idx := !idx + 1;
-          lex_token ()
-      | None -> ()
-  in
+  lex_token source idx line column tokens errs;
 
-  lex_token ();
   if List.length !errs > 0 then Result.Error (List.rev !errs)
   else Result.Ok (List.rev !tokens)
