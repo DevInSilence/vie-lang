@@ -1,22 +1,27 @@
 open Vie_common
 module Location = Vie_lexer.Location
 module Token = Vie_lexer.Token
+open Camomile
+module UTF8 = Camomile.UTF8
+
 
 (*Utility functions*)
 
 let update_pos line_ref column_ref char =
-  if char = '\n' then (
+  if UChar.code char = (UChar.code (UChar.of_char '\n')) then (
     line_ref := !line_ref + 1;
-    column_ref := 1)
-  else column_ref := !column_ref + 1
+    column_ref := 1
+  ) else
+    column_ref := !column_ref + 1
 
 let append_token tokens_ref tok = tokens_ref := tok :: !tokens_ref
 
 let peek_char source idx =
-  if idx >= String.length source then None else Some source.[idx]
+  if idx >= UTF8.length source then None
+  else Some (UTF8.get source idx)
 
-let collect source start_idx idx : string =
-  String.sub source start_idx (idx - start_idx)
+  let collect source start_idx idx : string =
+    Vie_common.Unicode.utf8_sub source start_idx (idx - start_idx)  
 
 let is_valid_number_start c = c >= '0' && c <= '9'
 
