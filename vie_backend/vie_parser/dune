@@ -1,6 +1,6 @@
 (library
  (name vie_parser)
  (public_name vie_backend.vie_parser)
- (modules lexer node)
+ (modules lexer node token location)
  (preprocess (pps ppx_deriving.show))
- (libraries vie_backend.vie_common vie_backend.vie_lexer ppx_deriving))
+ (libraries vie_backend.vie_common ppx_deriving str))

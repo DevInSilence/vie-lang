@@ -1,6 +1,4 @@
 open Vie_common
-module Location = Vie_lexer.Location
-module Token = Vie_lexer.Token
 open Camomile
 module UTF8 = Camomile.UTF8
 

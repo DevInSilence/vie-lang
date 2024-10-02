@@ -1,0 +1,18 @@
+%{
+open Node
+open Vie_lexer.Token
+%}
+
+%token <Token.t> Number
+%token <Token.t> Decimal
+%token <Token.t> Iden
+%token Assign
+%token EOF
+
+%type <Node.statement list> program
+%start program
+
+%%
+
+program:
+  | EOF { [] }

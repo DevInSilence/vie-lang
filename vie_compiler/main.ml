@@ -1,5 +1,5 @@
-open Vie_parser.Lexer
 open Vie_parser.Node
+open Vie_parser
 
 let () =
   let loc = Location.new_location 0 0 0 0 in

@@ -1,5 +1,3 @@
-open Vie_lexer
-
 type value_expr = 
   | IntegerExpr of Token.t
   | FloatExpr of Token.t
