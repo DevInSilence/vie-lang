@@ -19,6 +19,6 @@
  (name vie_backend)
  (synopsis "Vie backend libraries for the Vie programming language")
  (description "Vie backend libraries for the Vie programming language")
- (depends ocaml dune camomile)
+ (depends ocaml dune camomile ppx_deriving)
  (tags
   (topics "programming" "languages" "backend")))

@@ -1,4 +1,4 @@
-type ('a, 'b) t = Ok of 'a | Error of 'b
+type ('a, 'b) t = Ok of 'a | Error of 'b 
 
 let result_ok = function Ok _ -> true | Error _ -> false
 let result_error = function Ok _ -> false | Error _ -> true

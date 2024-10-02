@@ -1,5 +1,6 @@
 (library
   (name vie_lexer)
   (modules location token)
+   (preprocess (pps ppx_deriving.show))
   (public_name vie_backend.vie_lexer)
-  (libraries str vie_common))
+  (libraries str vie_common ppx_deriving))
