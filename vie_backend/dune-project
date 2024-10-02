@@ -1,0 +1,24 @@
+(lang dune 3.16)
+
+(name vie_backend)
+
+(generate_opam_files true)
+
+(source
+ (github devinsilence/vie)) 
+
+(authors "DevInSilence")
+
+(maintainers "DevInSilence")
+
+(license LICENSE)
+
+(documentation https://url/to/documentation)
+
+(package
+ (name vie_backend)
+ (synopsis "Vie backend libraries for the Vie programming language")
+ (description "Vie backend libraries for the Vie programming language")
+ (depends ocaml dune camomile)
+ (tags
+  (topics "programming" "languages" "backend")))

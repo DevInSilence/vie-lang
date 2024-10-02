@@ -2,4 +2,4 @@
  (public_name vie)
  (name main)
  (modules main) 
- (libraries vie_parser))
+ (libraries vie_backend.vie_parser vie_backend.vie_lexer))

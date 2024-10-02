@@ -1,5 +1,5 @@
 (library
   (name vie_common)
+  (public_name vie_backend.vie_common) 
   (modules result unicode)
-  (public_name vie.vie_common) 
   (libraries camomile))

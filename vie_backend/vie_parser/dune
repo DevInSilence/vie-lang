@@ -1,0 +1,5 @@
+(library
+ (name vie_parser)
+ (public_name vie_backend.vie_parser)
+ (modules lexer)
+ (libraries vie_backend.vie_common vie_backend.vie_lexer))
