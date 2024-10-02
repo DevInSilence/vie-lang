@@ -1,11 +1,12 @@
 %{
+  (*
 open Node
-open Vie_lexer.Token
+open Token
+open Location*)
 %}
 
-%token <Token.t> Number
-%token <Token.t> Decimal
-%token <Token.t> Iden
+%token <Token.t * Location.t> Number Decimal Iden
+%token <Token.t * Location.t> Operator
 %token Assign
 %token EOF
 
